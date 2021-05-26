@@ -1,12 +1,16 @@
 import numpy as np
 import torch
 from torch import nn
+import MetropolisSampling as ms
+import MinResQLP as mqlp
+import StochasticReconfiguration
+import recenter as rc
 
 
 class RBM(nn.Module):
    def __init__(self,
-               n_vis=100,
-               n_hid=500,
+               n_vis=5,
+               n_hid=100,
                k=5):
         super(RBM, self).__init__()
         self.W = nn.Parameter(torch.randn(n_hid,n_vis)*1e-2)
@@ -47,6 +51,18 @@ Test = RBM()
 
 params = list(Test.parameters())
 
-print("1")
-print(print(params[2].size()))
-print("2")
+
+spins = [-1,1,-1,1,1]
+for i in range(1000):
+  count = 0
+  gamma = 0.01
+
+  ### SamplingData - OFull, OAvg, EFull, EAvg, spins
+  Ns = 500
+  OFull,OAvg,EFull,EAvg,spins = ms.MetropolisHastings(steps=1000, sampling=Ns,NNModel=Test,spins=spins)
+  xCenter, eCenter = rc.recenter(OAvg,OFull,EAvg,EFull,Ns)
+  S,F = rc.ForceCov(xCenter,eCenter)
+  Nu = mqlp.minresQLP(S,F)
+  for param in params:
+    param -= gamma*Nu[count]
+    count += 1
